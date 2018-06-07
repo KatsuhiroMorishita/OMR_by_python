@@ -36,7 +36,7 @@ def get_socore_a_problem(correct, answer, mode="normal"):
         else:
             return 0
     elif mode == "full match":                  # "該当するもの全てにチェックを入れよ"的な、正解との完全一致で満点の場合（マークをつけないことにも強い意味がある）
-        return numpy.linalg.norm(vect) / len(vect)
+        return np.linalg.norm(vect) / len(vect)
     else:
         print("--select mode.--")
         return None
@@ -125,9 +125,10 @@ W = 6       # 横方向の選択肢の数
 H = 25      # 縦方向の設問の数
 
 def main():
-    corrects = read_correct("correct_answer.xlsx")
+    corrects = read_correct("correct_answer.xlsx")   # 正解の読み込み
     df = pd.DataFrame()
-    fnames = glob.glob("source/*.jpg")
+    fnames = glob.glob("source/*.jpg")   # 解答の画像ファイル名を取得
+    fnames = sorted(fnames)
     answers_array = []
     
     # 解答の読み込みと採点

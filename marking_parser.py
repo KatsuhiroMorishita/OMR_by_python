@@ -10,10 +10,12 @@ import glob
 import os
 
 
-def show(img, color):
+def show(img, color=None):
     """ 画像を表示する
     """
-    show_img = cv2.cvtColor(img, color) 
+    show_img = img.copy()
+    if color is not None:
+        show_img = cv2.cvtColor(img, color) 
     plt.figure(figsize=(30,15))
     plt.imshow(show_img)
     plt.show()
@@ -68,9 +70,10 @@ def get_xy(img, n=2, fname=""):
     total_y = np.array(total_y)
     total_y2 = 1 - total_y / np.max(total_y)  # 最大1に正規化したものを1から引く
     total_y2 = total_y2 / np.max(total_y2)   # 最大1に正規化
-    total_y2 = [total_y2[i] if total_y2[i] > 0.5 else 0 for i in range(len(total_y2))]          #  小さい値を消す
-    index_y = [i for i in range(len(total_y2))  if total_y2[i-1] == 0 and total_y2[i] > 0] 
+    total_y2 = [total_y2[i] if total_y2[i] > 0.5 else 0 for i in range(len(total_y2))]       # 小さい値を消す
+    index_y = [i for i in range(len(total_y2))  if total_y2[i-1] == 0 and total_y2[i] > 0]   # 立ち上がりを探す
     area = [np.sum(total_y2[i:i + 10]) for i in index_y]
+    area[-1] += 0.1        # 2本の線の検出量が全く同じことがあるが、それが後のindex検索に邪魔なので、それを崩す
     #plt.plot(total_y2)    # test for debug
     #plt.show()
     dict_index = {}
@@ -88,6 +91,7 @@ def get_xy(img, n=2, fname=""):
     total_x2 = [total_x2[i] if total_x2[i] > 0.5 else 0 for i in range(len(total_x2))]          #  小さい値を消す
     index_x = [i for i in range(len(total_x2))  if total_x2[i-1] == 0 and total_x2[i] > 0] 
     area = [np.sum(total_x2[i:i + 10]) for i in index_x]
+    area[-1] += 0.1        # 2本の線の検出量が全く同じことがあるが、それが後のindex検索に邪魔なので、それを崩す
     #plt.plot(total_x2)    # test for debug
     #plt.show()
     dict_index = {}
@@ -106,6 +110,8 @@ def get_mark(img, p1, p3, W, H, fname="", img_origin=None):
     H: int, 縦方向の設問の数
     fname: str, ファイル名（デバッグ用）
     """
+    #print("--searching--", fname, p1, p3)  # for debug
+
     y0, y1 = p1[1], p3[1]
     x0, x1 = p1[0], p3[0]
     y_step = (y1 - y0) / H   # ここでは浮動小数でないと、計算誤差が溜まるw
@@ -131,8 +137,14 @@ def get_mark(img, p1, p3, W, H, fname="", img_origin=None):
     area_arr  = np.array(area_arr)      # 生の集計結果
     mean = np.mean(area_arr)
     std = np.std(area_arr)
-    area_arr = (area_arr - mean) / std    # 正規化
     mark = np.zeros(area_arr.shape)
+
+    marked_area_ratio = np.sum(area_arr) / (x_step * y_step)  # 塗りつぶされた面積が正味何個分かカウント
+    if mean == 0.0 or marked_area_ratio < 0.3:                # マークがない場合は、0解答で返す
+        #print("--markless--", fname, p1, p3, marked_area_ratio)
+        return mark
+
+    area_arr = (area_arr - mean) / std    # 正規化
     mark[area_arr > 0.9] = 1              # マークされたセルの値を1にセットする（その他は0のまま）。-1を閾値にしたいところだが、難しい・・・
     
     # デバッグ用に検出した結果を画像として保存
@@ -208,22 +220,22 @@ def read_marking(img, W, H, bin_func, fname=""):
     #img_mor = mor(img_mor, mode="膨張", times=1, kernel_size=2)   # 細かい線が残っているので消す
     #show(img_mor, cv2.COLOR_GRAY2RGB)
     xy = get_xy(img_mor, fname=fname)        # 図枠の座標を取得
+    if len(xy[0]) == 1 or len(xy[1]) == 1:   # 図枠の検出に失敗したら、return
+        print("--lines are not detected.--", fname, xy)
+        return None
     p1 = (min(xy[0]), min(xy[1]))            # 枠の左上座標
     p3 = (max(xy[0]), max(xy[1]))            # 枠の右下座標
     
-    # 図枠の検出に失敗したら、return
-    if len(xy[0]) == 1 or len(xy[1]) == 1:
-        print("--lines are not detected.--")
-        return None
-    
-    # マーキングを判定
-    img_bin2 = img2bin(img, 230, 255)        # マーク読み出しのために、鉛筆で塗った後をはっきり黒になるように二値化
+    # マーキングを判定しやすくするために、２値化などの前処理
+    img_bin2 = img2bin(img, 200, 255)        # マーク読み出しのために、鉛筆で塗った後をはっきり黒になるように二値化。第2引数が小さいと、より濃ゆいものが白に分類される。
     kernel = np.ones((3, 3), np.uint8)       # マークの読み取りがしやすいように、ノイズを排除
     for _ in range(2):
         #img_bin2 = cv2.morphologyEx(img_bin2, cv2.MORPH_CLOSE, kernel)
         img_bin2 = mor(img_bin2, kernel_size=5, times=1, mode="収縮膨張")   # この辺は画像によって調整
     for _ in range(2):
         img_bin2 = mor(img_bin2, kernel_size=3, times=2, mode="膨張収縮")
+
+    # マーキングを判定
     result = get_mark(img_bin2, p1, p3, W, H, fname, img_origin=img)
     
     return result
