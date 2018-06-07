@@ -36,7 +36,8 @@ normalモードは、正解が1つ以上の場合で、正解が複数の場合�
 # 使い方
 1. answer_sheet.xlsxをカラー印刷して試験を実施
 1. 150dpiの解像度でカラースキャンした画像をsourceフォルダに保存
-1. correct_answer.xlsxに解答と配点と採点方法を記入
+1. 画像ファイルのフィアル名は、no1.jpg、no2.jpgなどのように、学生の番号と紐付いた番号を付ける（rename.pyの利用を推奨）
+1. correct_answer.xlsxに解答と配点と採点方法を記入（使わない設問の番号は消す）
 1. scoring.pyを実行（$python scoring.py）
 1. checkフォルダに生成された画像を確認し、うまくいっている事を確認する（失敗した場合は2値化の条件を変えたり、膨張収縮を調整したり）
 1. scoring_result.csvを確認し、合計を求めるなどの処理を行う
