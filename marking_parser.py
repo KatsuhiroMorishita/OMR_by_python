@@ -10,6 +10,8 @@ import glob
 import os
 
 
+threshold_mark = 200   # 値が小さいほど、マークの色が濃ゆくないと識別してくれない
+
 def show(img, color=None):
     """ 画像を表示する
     """
@@ -227,8 +229,8 @@ def read_marking(img, W, H, bin_func, fname=""):
     p3 = (max(xy[0]), max(xy[1]))            # 枠の右下座標
     
     # マーキングを判定しやすくするために、２値化などの前処理
-    img_bin2 = img2bin(img, 200, 255)        # マーク読み出しのために、鉛筆で塗った後をはっきり黒になるように二値化。第2引数が小さいと、より濃ゆいものが白に分類される。
-    kernel = np.ones((3, 3), np.uint8)       # マークの読み取りがしやすいように、ノイズを排除
+    img_bin2 = img2bin(img, threshold_mark, 255)   # マーク読み出しのために、鉛筆で塗った後をはっきり黒になるように二値化。第2引数が小さいと、より濃ゆいものが白に分類される。
+    kernel = np.ones((3, 3), np.uint8)             # マークの読み取りがしやすいように、ノイズを排除
     for _ in range(2):
         #img_bin2 = cv2.morphologyEx(img_bin2, cv2.MORPH_CLOSE, kernel)
         img_bin2 = mor(img_bin2, kernel_size=5, times=1, mode="収縮膨張")   # この辺は画像によって調整
