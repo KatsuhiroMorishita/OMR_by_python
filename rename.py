@@ -4,7 +4,9 @@
 import glob
 import shutil
 
-files = glob.glob("*.jpg")
+files = glob.glob("*.jpg")  # ファイル一覧を取得
+files = sorted(files)       # 名前順にソート
+
 for i in range(len(files)):
 	file = files[i]
 	if "no" in file:
