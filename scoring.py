@@ -36,10 +36,9 @@ def get_socore_a_problem(correct, answer, mode="normal"):
         else:
             return 0
     elif mode == "full match":                  # "該当するもの全てにチェックを入れよ"的な、正解との完全一致で満点の場合（マークをつけないことにも強い意味がある）
-        return np.linalg.norm(vect) / len(vect)
+        return np.sum(vect) / len(vect)
     else:
-        print("--select mode.--")
-        return None
+        raise ValueError('A mode is unknown. Check your correct_answer.xlsx. ')
     
         
 def get_score(corrects, answers):
@@ -51,11 +50,16 @@ def get_score(corrects, answers):
     for i in range(len(corrects)):
         c, point, mode = corrects[i]
         a = answers[i]
-        #print("point", type(point), point)
-        #print("a", type(a), a)
-        #print("c", type(c), c)
         score = get_socore_a_problem(c, a, mode) * point
         scores.append(score)
+        """
+        if i == 2:   # デバッグ用
+            print("point", type(point), point)
+            print("a", type(a), a)
+            print("c", type(c), c)
+            print("mode", mode)
+            print("score", score)
+        """
     return scores
 
         
