@@ -9,6 +9,7 @@ import glob
 import numpy as np
 import pandas as pd
 import os
+import sys
 
 
 def get_socore_a_problem(correct, answer, mode="normal"):
@@ -134,13 +135,26 @@ def main():
     fnames = glob.glob("source/*.jpg")   # 解答の画像ファイル名を取得
     fnames = sorted(fnames)
     answers_array = []
-    
-    # 解答の読み込みと採点
-    for fname in fnames:
-        answers = read(fname, W, H)   # 解答の読み込み
-        answers_array.append(answers)
+    save_name = "students answers.npy"  # 学生の解答を保存するファイル名
 
-        print(fname, answers)
+    if len(sys.argv) > 1 and sys.argv[1] == "-r":  # 配点のみ見直したい場合はオプションを付けること
+        # 過去に読み込み済みの解答をファイルから読み込み
+        answers_array_nd = np.load(save_name)
+        answers_array = list(answers_array_nd)
+    else:
+        # 解答を画像から読み込み
+        for fname in fnames:
+            answers = read(fname, W, H)   # 解答の読み込み
+            answers_array.append(answers)
+            print(fname, answers)
+        
+        answers_array_nd = np.array(answers_array)
+        np.save(save_name, answers_array_nd)
+    
+    # 採点
+    for i in range(len(fnames)):
+        fname = fnames[i]
+        answers = answers_array[i]    # 格納順とファイル名の順番がズレるとまずいので、画像ファイルの更新には注意
         result = get_score(corrects, answers)    # 点数の取得
         _id = get_number(fname)                  # ファイル名から出席番号を取得
         series = pd.Series([_id] + result)
