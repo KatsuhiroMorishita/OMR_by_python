@@ -186,7 +186,7 @@ def bin_by_blue(img):
     img: ndarray, BGR画像（OpenCVで読みだした直後のカラー画像はBGR）
     """
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    lower_hsv = np.array([80, 5, 5])   # blue: 120
+    lower_hsv = np.array([80, 50, 50])   # blue: 120
     upper_hsv = np.array([160, 255, 255])
     mask = cv2.inRange(hsv, lower_hsv, upper_hsv)   # Threshold the HSV image to get only blue colors
     mask = 255 - mask
@@ -199,7 +199,7 @@ def bin_by_green(img):
     img: ndarray, BGR画像（OpenCVで読みだした直後のカラー画像はBGR）
     """
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    lower_hsv = np.array([35, 20, 20])   # green: 65
+    lower_hsv = np.array([35, 50, 50])   # green: 65
     upper_hsv = np.array([95, 255, 255])
     mask = cv2.inRange(hsv, lower_hsv, upper_hsv)   # Threshold the HSV image to get only blue colors
     mask = 255 - mask
