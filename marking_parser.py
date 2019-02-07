@@ -106,7 +106,7 @@ def get_xy(img, n=2, fname=""):
     return index_x, index_y
 
 
-def get_mark(img, p1, p3, W, H, fname="", img_origin=None):
+def get_mark(img, p1, p3, W, H, fname="", img_origin=None, sym="o"):
     """ 指定された枠の中から、マーキングの結果を判定して返す（結果を2Dのndarrayで表す。マークがあれば1、なければ0。）
     W: int, 横方向の選択肢の数
     H: int, 縦方向の設問の数
@@ -168,7 +168,7 @@ def get_mark(img, p1, p3, W, H, fname="", img_origin=None):
                         ey = int(y0 +  y_step * (i+1) - y_pad)
                         cv2.rectangle(_img, (sx, sy), (ex, ey), (0, 0, 255), 2)
             cv2.imwrite("check/detected_{0}_{1}_x{2}".format(key, name, int(x0 / 100) * 100)  + ".png", _img)
-        save(img_origin, "o")
+        save(img_origin, sym)
         save(img, "b")
     return mark
 
@@ -180,6 +180,23 @@ def bin_by_gray(img):
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # グレースケール画像の作成
     return img2bin(img_gray, 240, 255)
 
+def bin_by_red(img):
+    """ 赤色で二値化した画像を作る（カラー部分が黒として残る）
+    img: ndarray, BGR画像（OpenCVで読みだした直後のカラー画像はBGR）
+    """
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    
+    lower_hsv = np.array([0, 127, 0])
+    upper_hsv = np.array([30, 255, 255])
+    mask1 = cv2.inRange(hsv, lower_hsv, upper_hsv)   # Threshold the HSV image to get only blue colors
+ 
+    lower_hsv = np.array([150, 127, 0])
+    upper_hsv = np.array([179, 255, 255])
+    mask2 = cv2.inRange(hsv, lower_hsv, upper_hsv)   # Threshold the HSV image to get only blue colors
+    
+    mask = 255 - (mask1 + mask2)
+
+    return mask
 
 def bin_by_blue(img):
     """ 青色で二値化した画像を作る（カラー部分が黒として残る）
@@ -206,7 +223,7 @@ def bin_by_green(img):
     return mask
     
     
-def read_marking(img, W, H, bin_func, fname=""):
+def read_marking(img, W, H, bin_func, fname="", sym="o"):
     """ 画像の中から四角の枠（スキャン画像に対して概ね回転していない事が必須）を検出して、その中のマーキングの結果を取得する
     img: カラー画像（BGR形式）
     W: int, 横方向の選択肢の数
@@ -238,7 +255,7 @@ def read_marking(img, W, H, bin_func, fname=""):
         img_bin2 = mor(img_bin2, kernel_size=3, times=2, mode="膨張収縮")
 
     # マーキングを判定
-    result = get_mark(img_bin2, p1, p3, W, H, fname, img_origin=img)
+    result = get_mark(img_bin2, p1, p3, W, H, fname, img_origin=img, sym=sym)
     
     return result
 

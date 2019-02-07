@@ -105,7 +105,23 @@ def get_number(name):
     if number[-1] == ".":
         number = number[:-1]
     return int(number)
+ 
+def get_number_from_marks(fname, W, H):
+    """ 出席番号用のマークから番号を取得する
+    """
+    img = cv2.imread(fname)                        # カラー画像を読み込み
+    s = img.shape
+    result_i = mp.read_marking(img, W, H, mp.bin_by_red, fname, "i")   # 上側の判定結果を取得
     
+    try:
+        id1 = np.nonzero(result_i[0] == 1)[0][0]
+        id2 = np.nonzero(result_i[1] == 1)[0][0]
+        nums = [1,2,3,4,5,6,7,8,9,0]
+        return 10 * nums[id1] + nums[id2]
+    except:
+        print("ファイル:" + fname + " から学生番号を読み取ることに失敗しました．", file=sys.stderr)
+        return 0
+
 
 def read(fname, W, H):
     """ 指定されたファイルに記載されたマーカーのマーク位置を返す
@@ -137,7 +153,8 @@ def main():
     answers_array = []
     save_name = "students answers.npy"  # 学生の解答を保存するファイル名
 
-    if len(sys.argv) > 1 and sys.argv[1] == "-r":  # 配点のみ見直したい場合はオプションを付けること
+
+    if "-r" in sys.argv:  # 配点のみ見直したい場合はオプションを付けること
         # 過去に読み込み済みの解答をファイルから読み込み
         answers_array_nd = np.load(save_name)
         answers_array = list(answers_array_nd)
@@ -150,13 +167,17 @@ def main():
         
         answers_array_nd = np.array(answers_array)
         np.save(save_name, answers_array_nd)
-    
+
     # 採点
     for i in range(len(fnames)):
         fname = fnames[i]
         answers = answers_array[i]    # 格納順とファイル名の順番がズレるとまずいので、画像ファイルの更新には注意
         result = get_score(corrects, answers)    # 点数の取得
-        _id = get_number(fname)                  # ファイル名から出席番号を取得
+
+        if "--read-student-id" in sys.argv:
+          _id = get_number_from_marks(fname, 10, 2)      # マークシートから出席番号を取得
+        else:
+          _id = get_number(fname)                  # ファイル名から出席番号を取得
         series = pd.Series([_id] + result)
         df = df.append(series, ignore_index = True)
     
