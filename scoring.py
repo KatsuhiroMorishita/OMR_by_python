@@ -137,6 +137,10 @@ def read(fname, W, H):
     # もし、欄が複数に分かれている場合は複数回に分けて（欄の色で渡す二値化関数を分けるか、おおよその位置で画像を切り出して）取得して、それぞれのresultをnp.vstack()で結合すること
     result_l = mp.read_marking(img, W, H, mp.bin_by_blue, fname)   # 左側の判定結果を取得
     result_r = mp.read_marking(img, W, H, mp.bin_by_green, fname)  # 右側の判定結果を取得
+    print("Left:")
+    print(result_l)
+    print("Right:")
+    print(result_r)
     result = np.vstack((result_l, result_r))
     return result
 
@@ -174,17 +178,29 @@ def main():
         answers = answers_array[i]    # 格納順とファイル名の順番がズレるとまずいので、画像ファイルの更新には注意
         result = get_score(corrects, answers)    # 点数の取得
 
+        
         if "--read-student-id" in sys.argv:
           _id = get_number_from_marks(fname, 10, 2)      # マークシートから出席番号を取得
+          series = pd.Series([_id] + result)
+        elif "-w" in sys.argv:
+          _id1 = get_number(fname)                  # ファイル名から出席番号を取得
+          _id2 = get_number_from_marks(fname, 10, 2)      # マークシートから出席番号を取得
+          series = pd.Series([_id1] + result)
+          series = pd.Series([_id2] + result)
         else:
           _id = get_number(fname)                  # ファイル名から出席番号を取得
-        series = pd.Series([_id] + result)
+          series = pd.Series([_id] + result)
+
         df = df.append(series, ignore_index = True)
     
     # 整理と保存
     df = df.sort_values(by=[0], ascending=True)            # 出席番号でソート
     df = df.reset_index(drop=True)                         # インデックスを振り直す
+    
     df = df.rename(index=int, columns={0: "Student Num."}) # カラム名を書き換え
+    if "-w" in sys.argv:
+        df = df.rename(index=int, columns={1: "Student Num. from Marks"}) # カラム名を書き換え
+    
     #df.to_excel("scoring_result.xlsx")   # 保存されない？
     df.to_csv("scoring_result.csv", index=False)
     
