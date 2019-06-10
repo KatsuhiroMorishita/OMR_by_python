@@ -97,15 +97,16 @@ def read_correct(fname):
 
 def get_number(name):
     """ ファイル名から番号を取得する
-    とりあえず、"no\d\d.jpg"のようなフォーマットを想定している
+    とりあえず、"no\d\d.jpg"のようなフォーマットを想定している。番号は1以上であること。
     """
-    name = os.path.split(name)[-1]   # フォルダ名を除く
+    name = os.path.basename(name)   # フォルダ名を除いたファイル名を取得
     fname, ext = os.path.splitext(name)
     number = fname[2:4]
     if number[-1] == ".":
         number = number[:-1]
     return int(number)
  
+
 def get_number_from_marks(fname, W, H):
     """ 出席番号用のマークから番号を取得する
     """
@@ -178,29 +179,28 @@ def main():
         answers = answers_array[i]    # 格納順とファイル名の順番がズレるとまずいので、画像ファイルの更新には注意
         result = get_score(corrects, answers)    # 点数の取得
 
-        
+        # 学生の番号を取得して、点数と合体
         if "--read-student-id" in sys.argv:
-          _id = get_number_from_marks(fname, 10, 2)      # マークシートから出席番号を取得
-          series = pd.Series([_id] + result)
+            _id = get_number_from_marks(fname, 10, 2)    # マークシートから出席番号を取得
+            series = pd.Series([_id] + result)
         elif "-w" in sys.argv:
-          _id1 = get_number(fname)                  # ファイル名から出席番号を取得
-          _id2 = get_number_from_marks(fname, 10, 2)      # マークシートから出席番号を取得
-          series = pd.Series([_id1] + result)
-          series = pd.Series([_id2] + result)
+            _id1 = get_number(fname)                     # ファイル名から出席番号を取得
+            _id2 = get_number_from_marks(fname, 10, 2)   # マークシートから出席番号を取得
+            series = pd.Series([_id1, _id2] + result)
         else:
-          _id = get_number(fname)                  # ファイル名から出席番号を取得
-          series = pd.Series([_id] + result)
+            _id = get_number(fname)                  # ファイル名から出席番号を取得
+            series = pd.Series([_id] + result)
 
         df = df.append(series, ignore_index = True)
     
     # 整理と保存
+    offset = 1
     df = df.sort_values(by=[0], ascending=True)            # 出席番号でソート
     df = df.reset_index(drop=True)                         # インデックスを振り直す
-    
     df = df.rename(index=int, columns={0: "Student Num."}) # カラム名を書き換え
-    if "-w" in sys.argv:
+    if "-w" in sys.argv:                                   # ファイル名と画像の両方から学生の番号を読んだら
         df = df.rename(index=int, columns={1: "Student Num. from Marks"}) # カラム名を書き換え
-    
+        offset += 1
     #df.to_excel("scoring_result.xlsx")   # 保存されない？
     df.to_csv("scoring_result.csv", index=False)
     
@@ -208,10 +208,10 @@ def main():
     correct_rate = []
     for i in range(len(corrects)):
         c, point, mode = corrects[i]
-        total = np.sum(df[i + 1])       # 設問i+1における、全員の点数の合計を取得
+        total = np.sum(df[i + offset])  # 設問毎に、全員の点数の合計を取得
         rate = float("nan")
         if point > 0.0:                 # 0のときは配点していない==計算対象外
-            rate = total / (len(df[i + 1]) * point)
+            rate = total / (len(df[i + offset]) * point)
         correct_rate.append(rate)
     correct_rate = np.array(correct_rate)
     np.savetxt("correct rate.txt", correct_rate)
