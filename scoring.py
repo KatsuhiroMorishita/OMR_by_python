@@ -97,15 +97,32 @@ def read_correct(fname):
 
 def get_number(name):
     """ ファイル名から番号を取得する
-    とりあえず、"no\d\d.jpg"のようなフォーマットを想定している
+    とりあえず、"no\d\d.jpg"のようなフォーマットを想定している。番号は1以上であること。
     """
-    name = os.path.split(name)[-1]   # フォルダ名を除く
+    name = os.path.basename(name)   # フォルダ名を除いたファイル名を取得
     fname, ext = os.path.splitext(name)
     number = fname[2:4]
     if number[-1] == ".":
         number = number[:-1]
     return int(number)
+ 
+
+def get_number_from_marks(fname, W, H):
+    """ 出席番号用のマークから番号を取得する
+    """
+    img = cv2.imread(fname)                        # カラー画像を読み込み
+    s = img.shape
+    result_i = mp.read_marking(img, W, H, mp.bin_by_red, fname, "i")   # 上側の判定結果を取得
     
+    try:
+        id1 = np.nonzero(result_i[0] == 1)[0][0]
+        id2 = np.nonzero(result_i[1] == 1)[0][0]
+        nums = [1,2,3,4,5,6,7,8,9,0]
+        return 10 * nums[id1] + nums[id2]
+    except:
+        print("ファイル:" + fname + " から学生番号を読み取ることに失敗しました．", file=sys.stderr)
+        return 0
+
 
 def read(fname, W, H):
     """ 指定されたファイルに記載されたマーカーのマーク位置を返す
@@ -121,6 +138,10 @@ def read(fname, W, H):
     # もし、欄が複数に分かれている場合は複数回に分けて（欄の色で渡す二値化関数を分けるか、おおよその位置で画像を切り出して）取得して、それぞれのresultをnp.vstack()で結合すること
     result_l = mp.read_marking(img, W, H, mp.bin_by_blue, fname)   # 左側の判定結果を取得
     result_r = mp.read_marking(img, W, H, mp.bin_by_green, fname)  # 右側の判定結果を取得
+    print("Left:")
+    print(result_l)
+    print("Right:")
+    print(result_r)
     result = np.vstack((result_l, result_r))
     return result
 
@@ -137,7 +158,8 @@ def main():
     answers_array = []
     save_name = "students answers.npy"  # 学生の解答を保存するファイル名
 
-    if len(sys.argv) > 1 and sys.argv[1] == "-r":  # 配点のみ見直したい場合はオプションを付けること
+
+    if "-r" in sys.argv:  # 配点のみ見直したい場合はオプションを付けること
         # 過去に読み込み済みの解答をファイルから読み込み
         answers_array_nd = np.load(save_name)
         answers_array = list(answers_array_nd)
@@ -150,20 +172,35 @@ def main():
         
         answers_array_nd = np.array(answers_array)
         np.save(save_name, answers_array_nd)
-    
+
     # 採点
     for i in range(len(fnames)):
         fname = fnames[i]
         answers = answers_array[i]    # 格納順とファイル名の順番がズレるとまずいので、画像ファイルの更新には注意
         result = get_score(corrects, answers)    # 点数の取得
-        _id = get_number(fname)                  # ファイル名から出席番号を取得
-        series = pd.Series([_id] + result)
+
+        # 学生の番号を取得して、点数と合体
+        if "--read-student-id" in sys.argv:
+            _id = get_number_from_marks(fname, 10, 2)    # マークシートから出席番号を取得
+            series = pd.Series([_id] + result)
+        elif "-w" in sys.argv:
+            _id1 = get_number(fname)                     # ファイル名から出席番号を取得
+            _id2 = get_number_from_marks(fname, 10, 2)   # マークシートから出席番号を取得
+            series = pd.Series([_id1, _id2] + result)
+        else:
+            _id = get_number(fname)                  # ファイル名から出席番号を取得
+            series = pd.Series([_id] + result)
+
         df = df.append(series, ignore_index = True)
     
     # 整理と保存
+    offset = 1
     df = df.sort_values(by=[0], ascending=True)            # 出席番号でソート
     df = df.reset_index(drop=True)                         # インデックスを振り直す
     df = df.rename(index=int, columns={0: "Student Num."}) # カラム名を書き換え
+    if "-w" in sys.argv:                                   # ファイル名と画像の両方から学生の番号を読んだら
+        df = df.rename(index=int, columns={1: "Student Num. from Marks"}) # カラム名を書き換え
+        offset += 1
     #df.to_excel("scoring_result.xlsx")   # 保存されない？
     df.to_csv("scoring_result.csv", index=False)
     
@@ -171,10 +208,10 @@ def main():
     correct_rate = []
     for i in range(len(corrects)):
         c, point, mode = corrects[i]
-        total = np.sum(df[i + 1])       # 設問i+1における、全員の点数の合計を取得
+        total = np.sum(df[i + offset])  # 設問毎に、全員の点数の合計を取得
         rate = float("nan")
         if point > 0.0:                 # 0のときは配点していない==計算対象外
-            rate = total / (len(df[i + 1]) * point)
+            rate = total / (len(df[i + offset]) * point)
         correct_rate.append(rate)
     correct_rate = np.array(correct_rate)
     np.savetxt("correct rate.txt", correct_rate)
