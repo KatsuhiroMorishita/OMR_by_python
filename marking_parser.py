@@ -10,7 +10,6 @@ import glob
 import os
 
 
-threshold_mark = 200   # 値が小さいほど、マークの色が濃ゆくないと識別してくれない
 
 def show(img, color=None):
     """ 画像を表示する
@@ -52,12 +51,10 @@ def mor(img, kernel_size=5, times=1, mode="膨張収縮"):
         mode = mode[2:]
 
         if "収縮" in _mode:     # 黒の領域が増える
-            for _ in range(times):
-                img_mor = cv2.erode(img_mor, kernel, iterations=1)
+            img_mor = cv2.erode(img_mor, kernel, iterations=times)
 
         if "膨張" in _mode:      # 白の領域が増える
-            for _ in range(times):
-                img_mor = cv2.dilate(img_mor, kernel, iterations=1)
+            img_mor = cv2.dilate(img_mor, kernel, iterations=times)
     return img_mor
 
 
@@ -180,23 +177,26 @@ def bin_by_gray(img):
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # グレースケール画像の作成
     return img2bin(img_gray, 240, 255)
 
+
 def bin_by_red(img):
     """ 赤色で二値化した画像を作る（カラー部分が黒として残る）
     img: ndarray, BGR画像（OpenCVで読みだした直後のカラー画像はBGR）
     """
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     
-    lower_hsv = np.array([0, 127, 0])
+    lower_hsv = np.array([0, 127, 50])
     upper_hsv = np.array([30, 255, 255])
     mask1 = cv2.inRange(hsv, lower_hsv, upper_hsv)   # Threshold the HSV image to get only blue colors
  
-    lower_hsv = np.array([150, 127, 0])
+    # 赤は色相の0周辺なので、2つに分ける
+    lower_hsv = np.array([150, 127, 50])    # Vの閾値の下限が0だと、印刷文字や手書きの文字も抜き出してしまう
     upper_hsv = np.array([179, 255, 255])
     mask2 = cv2.inRange(hsv, lower_hsv, upper_hsv)   # Threshold the HSV image to get only blue colors
     
     mask = 255 - (mask1 + mask2)
 
     return mask
+
 
 def bin_by_blue(img):
     """ 青色で二値化した画像を作る（カラー部分が黒として残る）
@@ -216,27 +216,27 @@ def bin_by_green(img):
     img: ndarray, BGR画像（OpenCVで読みだした直後のカラー画像はBGR）
     """
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    lower_hsv = np.array([35, 50, 50])   # green: 65
-    upper_hsv = np.array([95, 255, 255])
+    lower_hsv = np.array([20, 50, 50])   # green: 65
+    upper_hsv = np.array([80, 255, 255])
     mask = cv2.inRange(hsv, lower_hsv, upper_hsv)   # Threshold the HSV image to get only blue colors
     mask = 255 - mask
     return mask
     
     
-def read_marking(img, W, H, bin_func, fname="", sym="o"):
+def read_marking(img, W, H, bin_func, fname="", sym="o", threshold_mark=150):
     """ 画像の中から四角の枠（スキャン画像に対して概ね回転していない事が必須）を検出して、その中のマーキングの結果を取得する
     img: カラー画像（BGR形式）
     W: int, 横方向の選択肢の数
     H: int, 縦方向の設問の数
     bin_func: ２値化する関数
+    threshold_mark: int, 0 <= x <= 255. 解答欄に着いたマークの2値化の閾値。小さいほど濃ゆくないと駄目。
     """
     # 図枠の座標を取得
     img_bin = bin_func(img)   # 回答欄の図枠を読み出すために、二値化
+    #show(img_bin, cv2.COLOR_GRAY2RGB)
     img_mor = img_bin[:, :]
-    img_mor = mor(img_mor, kernel_size=4)                         # ゴミのような点を削除
-    img_mor = mor(img_mor, mode="膨張", times=2, kernel_size=2)    # 細かい線が残っているので消す
-    #img_mor = mor(img_mor, mode="収縮", times=1, kernel_size=2)   # 細かい線が残っているので消す
-    #img_mor = mor(img_mor, mode="膨張", times=1, kernel_size=2)   # 細かい線が残っているので消す
+    img_mor = mor(img_mor, mode="収縮膨張", times=2, kernel_size=4)
+    img_mor = mor(img_mor, mode="膨張収縮", times=2, kernel_size=2)    # ゴミや細かい線が残っているので消す
     #show(img_mor, cv2.COLOR_GRAY2RGB)
     xy = get_xy(img_mor, fname=fname)        # 図枠の座標を取得
     if len(xy[0]) == 1 or len(xy[1]) == 1:   # 図枠の検出に失敗したら、return
