@@ -1,0 +1,3 @@
+H,25
+W,6
+threshold_mark,150

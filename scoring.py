@@ -91,6 +91,82 @@ def read_correct(fname):
 
 
 
+def read_setting(fname):
+    """ 設定を読み込む。返り値は辞書で返す
+    """
+    param = {}
+    with open(fname, "r", encoding="utf-8-sig") as fr:
+        lines = fr.readlines()
+
+        for line in lines:
+            if "," not in line:
+                continue
+            line = line.rstrip()    # 右端の空白や改行コードを削除
+            param_name, value = line.split(",")
+            param[param_name] = value
+
+    return param
+
+
+
+
+def get_number_from_marks(fname, W, H, trim_y=(200,1300), trim_x=(200,300), threshold_mark=150):
+    """ 出席番号用のマークから番号を取得する
+    trim_y: tuple<int, int>, 縦方向の余白幅。上下
+    trim_x: tuple<int, int>, 横方向の余白幅。左右
+    threshold_mark: int, 0 <= x <= 255. 解答欄に着いたマークの2値化の閾値。小さいほど濃ゆくないと駄目。
+    """
+    img = cv2.imread(fname)                        # カラー画像を読み込み
+    Y, X, Z = img.shape
+    upper = trim_y[0]
+    under = trim_y[1]
+    left = trim_x[0]
+    right = trim_x[1]
+    img = img[upper:Y-under, left:X-right]         # 画像の縁と上部を取り除いた画像を作成
+    result_i = mp.read_marking(img, W, H, mp.bin_by_red, fname, "i", threshold_mark=threshold_mark)   # 上側の判定結果を取得
+    
+    try:
+        id1 = np.nonzero(result_i[0] == 1)[0][0]
+        id2 = np.nonzero(result_i[1] == 1)[0][0]
+        nums = [1,2,3,4,5,6,7,8,9,0]
+        return 10 * nums[id1] + nums[id2]
+    except:
+        print("ファイル:" + fname + " から学生番号を読み取ることに失敗しました．", file=sys.stderr)
+        return 0
+
+
+
+def read(fname, W, H, trim_y=(500,50), trim_x=(50,50), threshold_mark=150):
+    """ 指定されたファイルに記載されたマーカーのマーク位置を返す
+    (1) 用紙のスキャン画像上部を切り取る用に設計しているが、フォーマットによっては不要だろう。
+    (2) ↑での切り取り幅は画像の解像度によって変わる
+    W: int, 横方向の選択肢の数
+    H: int, 縦方向の設問の数
+    trim_y: tuple<int, int>, 縦方向の余白幅。上下
+    trim_x: tuple<int, int>, 横方向の余白幅。左右
+    threshold_mark: int, 0 <= x <= 255. 解答欄に着いたマークの2値化の閾値。小さいほど濃ゆくないと駄目。
+    """
+    img = cv2.imread(fname)                        # カラー画像を読み込み
+    Y, X, Z = img.shape
+    upper = trim_y[0]
+    under = trim_y[1]
+    left = trim_x[0]
+    right = trim_x[1]
+    img = img[upper:Y-under, left:X-right]         # 画像の縁と上部を取り除いた画像を作成
+    
+    # もし、欄が複数に分かれている場合は複数回に分けて（欄の色で渡す二値化関数を分けるか、おおよその位置で画像を切り出して）取得して、それぞれのresultをnp.vstack()で結合すること
+    result_l = mp.read_marking(img, W, H, mp.bin_by_blue, fname, threshold_mark=threshold_mark)   # 左側の判定結果を取得
+    result_r = mp.read_marking(img, W, H, mp.bin_by_green, fname, threshold_mark=threshold_mark)  # 右側の判定結果を取得
+    print("Left:")
+    print(result_l)
+    print("Right:")
+    print(result_r)
+    result = np.vstack((result_l, result_r))
+    return result
+
+
+
+
 
 ############################################################
 # 用紙や画像ファイル名フォーマットに合わせて、以下の関数は調整する必要がある
@@ -107,58 +183,26 @@ def get_number(name):
     return int(number)
  
 
-def get_number_from_marks(fname, W, H):
-    """ 出席番号用のマークから番号を取得する
-    """
-    img = cv2.imread(fname)                        # カラー画像を読み込み
-    s = img.shape
-    result_i = mp.read_marking(img, W, H, mp.bin_by_red, fname, "i")   # 上側の判定結果を取得
-    
-    try:
-        id1 = np.nonzero(result_i[0] == 1)[0][0]
-        id2 = np.nonzero(result_i[1] == 1)[0][0]
-        nums = [1,2,3,4,5,6,7,8,9,0]
-        return 10 * nums[id1] + nums[id2]
-    except:
-        print("ファイル:" + fname + " から学生番号を読み取ることに失敗しました．", file=sys.stderr)
-        return 0
 
-
-def read(fname, W, H):
-    """ 指定されたファイルに記載されたマーカーのマーク位置を返す
-    (1) 用紙のスキャン画像上部を切り取る用に設計しているが、フォーマットによっては不要だろう。
-    (2) ↑での切り取り幅は画像の解像度によって変わる
-    W: int, 横方向の選択肢の数
-    H: int, 縦方向の設問の数
-    """
-    img = cv2.imread(fname)                        # カラー画像を読み込み
-    s = img.shape
-    img = img[500:s[0]-50, 50:s[1]-50]             # 画像の縁と上部を取り除いた画像を作成
-    
-    # もし、欄が複数に分かれている場合は複数回に分けて（欄の色で渡す二値化関数を分けるか、おおよその位置で画像を切り出して）取得して、それぞれのresultをnp.vstack()で結合すること
-    result_l = mp.read_marking(img, W, H, mp.bin_by_blue, fname)   # 左側の判定結果を取得
-    result_r = mp.read_marking(img, W, H, mp.bin_by_green, fname)  # 右側の判定結果を取得
-    print("Left:")
-    print(result_l)
-    print("Right:")
-    print(result_r)
-    result = np.vstack((result_l, result_r))
-    return result
-
-
-
-W = 6       # 横方向の選択肢の数
-H = 25      # 縦方向の設問の数
 
 def main():
+    # 設定の読み込み
+    setting_dict = read_setting("setting.txt")
+    W = int(setting_dict["W"])    # 横方向の選択肢の数
+    H = int(setting_dict["H"])    # 縦方向の設問の数
+    th = int(setting_dict["threshold_mark"])    # マークの2値化の閾値
     corrects = read_correct("correct_answer.xlsx")   # 正解の読み込み
     df = pd.DataFrame()
     fnames = glob.glob("source/*.jpg")   # 解答の画像ファイル名を取得
     fnames = sorted(fnames)
+    if len(fnames) == 0:
+        print("sourceフォルダに画像が1枚もありません。")
+        exit()
     answers_array = []
     save_name = "students answers.npy"  # 学生の解答を保存するファイル名
 
 
+    # 解答の読み込み
     if "-r" in sys.argv:  # 配点のみ見直したい場合はオプションを付けること
         # 過去に読み込み済みの解答をファイルから読み込み
         answers_array_nd = np.load(save_name)
@@ -166,7 +210,7 @@ def main():
     else:
         # 解答を画像から読み込み
         for fname in fnames:
-            answers = read(fname, W, H)   # 解答の読み込み
+            answers = read(fname, W, H, threshold_mark=th)   # 解答の読み込み
             answers_array.append(answers)
             print(fname, answers)
         
@@ -181,11 +225,11 @@ def main():
 
         # 学生の番号を取得して、点数と合体
         if "--read-student-id" in sys.argv:
-            _id = get_number_from_marks(fname, 10, 2)    # マークシートから出席番号を取得
+            _id = get_number_from_marks(fname, 10, 2, threshold_mark=th)    # マークシートから出席番号を取得
             series = pd.Series([_id] + result)
         elif "-w" in sys.argv:
             _id1 = get_number(fname)                     # ファイル名から出席番号を取得
-            _id2 = get_number_from_marks(fname, 10, 2)   # マークシートから出席番号を取得
+            _id2 = get_number_from_marks(fname, 10, 2, threshold_mark=th)   # マークシートから出席番号を取得
             series = pd.Series([_id1, _id2] + result)
         else:
             _id = get_number(fname)                  # ファイル名から出席番号を取得
