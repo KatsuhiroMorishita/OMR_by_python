@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import os
 import sys
+from natsort import natsorted
 
 
 def get_socore_a_problem(correct, answer, mode="normal"):
@@ -194,7 +195,8 @@ def main():
     corrects = read_correct("correct_answer.xlsx")   # 正解の読み込み
     df = pd.DataFrame()
     fnames = glob.glob("source/*.jpg")   # 解答の画像ファイル名を取得
-    fnames = sorted(fnames)
+    fnames = natsorted(fnames)   # ファイル名でソート。標準関数のsorted()よりも、デバッグしやすい
+    print(fnames)
     if len(fnames) == 0:
         print("sourceフォルダに画像が1枚もありません。")
         exit()
@@ -212,7 +214,10 @@ def main():
         for fname in fnames:
             answers = read(fname, W, H, threshold_mark=th)   # 解答の読み込み
             answers_array.append(answers)
-            print(fname, answers)
+            print(fname)
+            for i in range(len(answers)):
+                x = answers[i]
+                print(i + 1, x)
         
         answers_array_nd = np.array(answers_array)
         np.save(save_name, answers_array_nd)
@@ -239,7 +244,7 @@ def main():
     
     # 整理と保存
     offset = 1
-    df = df.sort_values(by=[0], ascending=True)            # 出席番号でソート
+    df = df.sort_values(by=[0], ascending=True)            # 出席番号でソート（ファイル名をsorted()でソートしたり、ファイル名に番号が入っていない場合はこれでソートが必要）
     df = df.reset_index(drop=True)                         # インデックスを振り直す
     df = df.rename(index=int, columns={0: "Student Num."}) # カラム名を書き換え
     if "-w" in sys.argv:                                   # ファイル名と画像の両方から学生の番号を読んだら
