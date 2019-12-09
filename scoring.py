@@ -48,12 +48,15 @@ def get_score(corrects, answers):
     corrects: list, 正解と採点モードのペアを要素とするリスト
     answers: 2D ndarray or list, 検査したい値が入っている
     """    
-    scores = []
+    scores = []    # 各問の点数を格納する
     for i in range(len(corrects)):
-        c, point, mode = corrects[i]
+        c0, point, mode = corrects[i]
         a = answers[i]
-        score = get_socore_a_problem(c, a, mode) * point
-        scores.append(score)
+        local_score = []
+        for c in c0:      # 複数の採点基準（正解が複数ある場合）に対応）
+            score = get_socore_a_problem(c, a, mode) * point
+            local_score.append(score)
+        scores.append(max(local_score))   # 最大の点数を採用
         """
         if i == 2:   # デバッグ用
             print("point", type(point), point)
@@ -75,19 +78,26 @@ def read_correct(fname):
     temp = df.iloc[0, 1]                # 1行目に選択肢の数の情報が入っている（例1：abcdef, 例2:12345）
     
     for i in range(1, len(df)):         # 2行目以降から正解の情報を読取る
-        ans =  df.iloc[i, 1]            # 正解（文字列で与えられる）
+        ans_correct =  df.iloc[i, 1]    # 正解（文字列で与えられる）
         point =  df.iloc[i, 2]          # 配点
         mode =  df.iloc[i, 3]           # 採点モード
-        c = np.zeros(len(temp))         # 選択肢の数だけ0を用意
-        if isinstance(ans, str):        # 解がない場合に対応
-            for k in ans:               # 正解の在る部分だけ1とする（複数の選択肢が正解なケースにも対応）
-                if k in temp:
-                    index = temp.index(k)
-                    c[index] = 1
-                else:
-                    print("--不明な選択肢が正解に入力されています--")
-                    continue
-        correct.append((c, point, mode))
+        c0 = []
+        if isinstance(ans_correct, str):        # 解がある場合
+            ans_array = ans_correct.split("|")  # 複数の採点基準（正解が複数ある場合）に対応）            
+            for ans in ans_array:
+                c = np.zeros(len(temp))         # 選択肢の数だけ0を用意
+                for k in ans:                   # 正解の在る部分だけ1とする（複数の選択肢が正解なケースにも対応）
+                    if k in temp:
+                        index = temp.index(k)
+                        c[index] = 1
+                    else:
+                        print("--不明な選択肢が正解に入力されています--")
+                        continue
+                c0.append(c)
+        else:                           # 解がない場合
+            c = np.zeros(len(temp))     # 選択肢の数だけ0を用意
+            c0.append(c)
+        correct.append((c0, point, mode))
     return correct
 
 
@@ -256,7 +266,7 @@ def main():
     # 正解率を計算して保存する
     correct_rate = []
     for i in range(len(corrects)):
-        c, point, mode = corrects[i]
+        c0, point, mode = corrects[i]
         total = np.sum(df[i + offset])  # 設問毎に、全員の点数の合計を取得
         rate = float("nan")
         if point > 0.0:                 # 0のときは配点していない==計算対象外
